@@ -7,14 +7,29 @@
 using namespace Rcpp;
 using namespace std;
 
+class fun
+{
+  public:
+    NumericVector distances;
+    int k;
+    fun(NumericVector d, int k)
+    {
+      distances = d;
+      this->k = k;
+    }
+    int operator()(const int& x,const int& y)
+    {
+      return distances(x,k)<distances(y,k);
+    }
+};
 
-NumericVector EuclidesDistanceRowWectors(NumericMatrix X, IntegerVector row1, IntegerVector row2)
+NumericVector EuclidesDistanceRowWectors(NumericMatrix X, int row1, int row2)
 {
   NumericVector v = NumericVector(0);
   double sumpow2 = 0;
   for(int i=0;i<X.ncol();i++)
   {
-    sumpow2+=(X(row1[0],i)-X(row2[0],i))*(X(row1[0],i)-X(row2[0],i));
+    sumpow2+=(X(row1,i)-X(row2,i))*(X(row1,i)-X(row2,i));
   }
   return NumericVector::create(sqrt(sumpow2));
 }
@@ -24,24 +39,23 @@ NumericVector EuclidesDistanceRowWectors(NumericMatrix X, IntegerVector row1, In
 IntegerMatrix Mnn(NumericMatrix X, IntegerVector M) {
   IntegerMatrix ret = IntegerMatrix(X.nrow(),M[0]);
   
-  static NumericMatrix distances = NumericMatrix(X.nrow(),X.nrow());
-  
- 
-  
+  NumericMatrix distances = NumericMatrix(X.nrow(),X.nrow());
+
   for(int i=0;i<X.nrow();i++)
   {
     for(int j=0;j<X.nrow();j++)
     {
-      distances(i,j) = EuclidesDistanceRowWectors(X,IntegerVector::create(i),IntegerVector::create(j))(0);
+      distances(i,j) = EuclidesDistanceRowWectors(X,i,j)(0);
     }
   }
   
+  int k=0;
   
-  static int k=0;
-  
+  fun f = fun(distances,k);
 
   for(k=0;k<X.nrow();k++)
   {
+    f.k=k;
     
     IntegerVector indexes = IntegerVector(X.nrow());
     
@@ -50,7 +64,8 @@ IntegerMatrix Mnn(NumericMatrix X, IntegerVector M) {
       indexes[i]=i;
     }
     
-    sort(indexes.begin(),indexes.end(),[](const int& x,const int& y){return distances(x,k)<distances(y,k);});
+    sort(indexes.begin(),indexes.end(),f);
+    
     
     int i=0;
     int j=0;
@@ -65,7 +80,6 @@ IntegerMatrix Mnn(NumericMatrix X, IntegerVector M) {
       }
       
     }
-    //cout<<indexes<<endl;
   }
   return ret;
 }
@@ -73,12 +87,10 @@ IntegerMatrix Mnn(NumericMatrix X, IntegerVector M) {
 
 void DFSrec(IntegerMatrix Nmatrix,int vertex, int* searched, int partNr, int& searchedcount)
 {
-  //cout<<"searched: "<<vertex<<endl;
   searchedcount++;
   searched[vertex] = partNr;
   for(int i=0;i<Nmatrix.ncol();i++)
   {
-    //cout<<vertex<<" "<<i<<" "<<Nmatrix(vertex,i)<<" "<<searched[i]<<""<<endl;
     if(Nmatrix(vertex,i)==1 && searched[i]==0)
     {
       DFSrec(Nmatrix,i,searched,partNr,searchedcount); 
@@ -95,6 +107,7 @@ IntegerMatrix Mnn_graph(IntegerMatrix S)
     for(int j=0;j<S.ncol();j++)
     {
       Nmatrix(i,S(i,j))=1;
+      Nmatrix(S(i,j),i)=1;
     }
   }
   
@@ -119,11 +132,8 @@ IntegerMatrix Mnn_graph(IntegerMatrix S)
         break;
       }
     }
-
-    //cout<<"k: "<<k<<endl;
   }
   
-  //wiêcej ni¿ 1 sk³adowa-³¹czenie naiwne
   if(num>1)
   {
     int actnum=2;
@@ -139,22 +149,8 @@ IntegerMatrix Mnn_graph(IntegerMatrix S)
     }
   }
   
-  //for(int i=0;i<S.nrow();i++)
-  //{
-  //  cout<<searched[i]<<", ";
-  //}
-  //cout<<endl;
-  
   delete[] searched;
   return Nmatrix;
 }
 
-
-
-
-
-//Sys.setenv("PKG_CXXFLAGS"="-std=c++14")
-//Rcpp::sourceCpp('C:\\Users\\Tomasz\\Desktop\\PRDPY - project 2\\Mnn.Cpp')
-//v <-rep(1:10,4)
-//dim(v) <- c(10,4)
 

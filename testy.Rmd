@@ -1,0 +1,231 @@
+---
+title: "Testy Metody spectral_clustering na w³asnych zbiorach"
+author: "Tomasz Suchodolski"
+date: "13 maja 2019"
+output: html_document
+---
+
+
+```{r echo = FALSE}
+path <- "C:\\Users\\Tomasz\\Desktop\\PRDPY-project2\\"
+
+library("fpc")
+library("mclust")
+library("dendextend")
+Sys.setenv("PKG_CXXFLAGS"="-std=c++14")
+Rcpp::sourceCpp(paste(path,'spectral_aux.cpp',sep=""))
+set.seed(666)
+
+```
+
+## Wstêp teoretyczny
+
+Metoda **spectral_clustering(X, k, M)** jest algorytmem spektralnym analizy skupieñ - zaimplementowanym przeze mnie zgodnie opisem algorytmeu przedstawionym w poleceniu zadania. Jej implementacja sk³ada siê z:
+
+1. **funkcji Mnn(X, M)**, która dla macierzy **X** bêd¹cej reprezentacj¹ wierszow¹ n wektorów wyznacza macierz **S** tak¹, ¿e **S[i,j]** jest indeksem j-tego najbli¿szego s¹siada wektora odpowiadaj¹cego i-temu wierszowi w metryce Euklidesowej.
+2. funkcja **Mnn_graph(S)**, której argumentem jest macierz wygenerowana w pkt. 1. Wylicza ona macierz **G** o zbiorze wartoœci elementów = {0,1}, tak¹, ¿e **G[i,j]** = 1 <=> Istnieje u takie, ¿e **S[i,u]**=j lub **S[u,j]**=i. Ponadto jeœli Graf reprezentowany przez macierz G jako jego macierz s¹siedztwa nie jest spójny to jest on "uspójaniany" w taki sposób, ¿e pierwszy wierzcho³ek z pierwszej sk³adowej jest ³¹czony z pierwszymi wierzcho³kami z pozosta³ych sk³adowych.
+3. funkcji **Laplacian_eigen(G, k)**, która:
+    + wyznacza laplasjan grafu **L**=**D**-**G**, gdzie **D** jest macierz¹ diagonaln¹ tak¹, ¿e **D[i,i]** = p, gdzie p jest stopniem i-tego wierzcho³ka w grafie reprezentowanym przez macierz **G**. 
+    + zwraca jako wynik macierz **E** sk³adaj¹c¹ siê z kolumnowo zapisanych wektorów w³asnych odpowiadaj¹cych 2, 3,... (k+1) wartoœci w³asnej **L**.
+4. wyznaczenia skupieñ dla macierzy **E** z poprzedniego podpunktu za pomoc¹ metody k-œrednich.
+
+## Zbiory testowe
+
+```{r echo=FALSE}
+Laplacian_eigen <- function(G, k)
+{
+  ev <- eigen(diag(rowSums(G))-G)
+  k2 <- ev$vectors[,order(ev$values)][,1:k+1]
+}
+
+spectral_clustering <- function(X,k,M)
+{
+  k6<-Laplacian_eigen(Mnn_graph(Mnn(X,M)),k)
+  kmeans(Laplacian_eigen(Mnn_graph(Mnn(X,M)),k),k)
+}
+
+
+DistributedCircle <- function(n,R,delta)
+{
+  angle <- seq(0 , 2*pi, (2*pi/(n-1)))
+  
+  r <- runif(length(angle), min = R-delta, max = R+delta)
+  
+  x <- r *sin(angle)
+  y <- r *cos(angle)
+  m <- matrix(c(x,y),nrow = length(x))
+  colnames(m) <- c("x","y")
+  return(m)
+}
+
+circlesClust <- function(n)
+{
+  c1 <- DistributedCircle(n,5,10)
+  c2 <- DistributedCircle(n,100,10)
+  c3 <- DistributedCircle(n,200,10)
+  c4 <- DistributedCircle(n,300,10)
+  return(rbind(c1,c2,c3,c4))
+}
+
+spiral <- function(n,R,delta, beginAngle = 0, endAngle = 2*pi)
+{
+  angle <- seq(beginAngle , endAngle, ((endAngle-beginAngle)/(n-1)))
+  
+  r <- runif(length(angle), min = R-delta, max = R+delta) + seq(10,100,length.out = length(angle))
+  
+  x <- r *sin(angle)
+  y <- r *cos(angle)
+  m <- matrix(c(x,y),nrow = length(x))
+  colnames(m) <- c("x","y")
+  return(m)
+}
+
+twoSpirals <- function(n)
+{
+  s1 <- spiral(n,5,1.5)
+  s2 <- spiral(n,5,1.5,pi,3*pi)
+  return(rbind(s1,s2))
+}
+
+clust <- function(x=0, y=0, n=100, sd=1)
+{
+  xx <- rnorm(n, x, sd)
+  yy <- rnorm(n, y, sd)
+  m <- matrix(c(xx,yy),nrow = length(xx))
+  colnames(m) <- c("x","y")
+  return(m)
+}
+
+fiveClusts <- function(n)
+{
+  c1 <- clust(0  ,0  ,n,1)
+  c2 <- clust(10 ,10 ,n,1)
+  c3 <- clust(10 ,-10,n,1)
+  c4 <- clust(-10,10 ,n,1)
+  c5 <- clust(-10,-10,n,1)
+  return(rbind(c1,c2,c3,c4,c5))
+}
+
+
+plotManyClusts <- function(cl, n, color)
+{
+  plot(cl[,1],cl[,2],col = rep(color, each = (length(cl)/2/n)),
+  main = "Zbiory skupieñ", xlab = "x", ylab = "y")
+}
+
+```
+
+Przygotowa³em 3 testowe zboiory w przestrzeni 2 wymiarowej, za pomoc¹ których mam zamiar przetestowaæ poprawnoœæ napisanego agorytmu.
+
+### zbiór 1 
+
+Pierwszy zbiór sk³ada siê ze skupieñ bêd¹cych w okolicy piêciu punktów o wspó³rzêdnych kolejno: **(-10,-10), (-10,10), (0,0), (10,-10), (10,10)**. Okolica ka¿dego z punktów sk³ada siê z 80 punktów, których wspó³rzêdne zosta³y wylosowane za pomoc¹ funkcji **rnorm(p,1)**, gdzie p jest dan¹ "œredni¹" wspó³rzêdn¹ punktu. Rozk³ady wspó³rzêdnych pochodz¹ zatem z rozk³adu normalnego z odchyleniem standardowym równym 1.
+
+```{r fig.width=6, fig.height=6, echo = FALSE}
+clust1 <- fiveClusts(80)
+plotManyClusts(clust1,5,c("red","green","blue","black","magenta"))
+indexes1 <- rep(c(1,2,3,4,5),each = 80)
+```
+
+### zbiór 2 
+
+Zbiór 2 sk³ada siê z dwóch spiral w pobli¿u, krórych rozmieszczone s¹ punkty nale¿¹ce do skupieñ. Poprawny algorytm powinien znaleŸæ w przypadku wyszukiwania dwóch skupieñ obie spirale jako oddzielne klasy.
+
+```{r fig.width=6, fig.height=6, echo = FALSE}
+clust2 <- twoSpirals(200)
+plotManyClusts(clust2, 2, c("red","blue"))
+indexes2 <- rep(c(1,2),each = 200)
+```
+
+### zbiór 3 
+
+Zbiór 3 sk³ada siê z punktów rozlosowanych w okolicy czterech okrêgów umieszczonych jeden w drugim. Celem algorytmu jest podzia³ punktów na te cztery okrêgi.
+
+```{r fig.width=6, fig.height=6, echo = FALSE, warning=FALSE}
+clust3 <- circlesClust(100)
+plotManyClusts(clust3,4,c("red","green","blue","black"))
+indexes3 <- rep(c(1,2,3,4),each = 100)
+```
+
+```{r echo = FALSE, warning=FALSE}
+adjRandIndex <- data.frame(matrix(ncol = 3, nrow = 0))
+colnames(adjRandIndex) <- c("5 skupieñ", "2 spirale", "4 ko³a")
+FMIndex <- data.frame(matrix(ncol = 3, nrow = 0))
+colnames(FMIndex) <- c("5 skupieñ", "2 spirale", "4 ko³a")
+
+
+for(val in 1:100)
+{
+  c1 <- spectral_clustering(clust1,5,val)[[1]]
+  c2 <- spectral_clustering(clust2,5,val)[[1]]
+  c3 <- spectral_clustering(clust3,5,val)[[1]]
+  
+  adjRandIndex[val,1] =adjustedRandIndex(c1, indexes1)
+  adjRandIndex[val,2] =adjustedRandIndex(c2, indexes2)
+  adjRandIndex[val,3] =adjustedRandIndex(c3, indexes3)
+  
+  FMIndex[val,1] =FM_index(c1, indexes1)
+  FMIndex[val,2] =FM_index(c2, indexes2)
+  FMIndex[val,3] =FM_index(c3, indexes3)
+
+}
+```
+
+
+
+## Obliczenie wyników
+
+Dla ka¿dego z trzech zbiorów wywo³a³em alogrytm 100 razy dla parametru **M** zmieniaj¹cego siê w zakresie od 0 do 100. Wyniki porównujê do wzorcowych przy pomocy *indeksu Fowlkesa–Mallowsa* oraz *skorygowanego indexu Randa*. Poni¿ej prezentujê analizê otrzymanych wyników.
+
+### Wykres ogólny
+Pierwszyni wykresami jakimi przedstawie bêd¹ wartoœci dwóch powy¿ej wymienionych indexów w zale¿noœci od liczby s¹siadów dla testowych zbiorów danych:
+
+```{r echo = FALSE}
+par(mfrow=c(3,2))
+plot(1:100,adjRandIndex[1:100,1],main="zbiór 1 - skorygowany index Randa",
+     xlab = "Liczba najbli¿yszych s¹siadów (M)", ylab = "wartoœæ indexu")
+plot(1:100,FMIndex[1:100,1],main="zbiór 1 - index FM",
+     xlab = "Liczba najbli¿yszych s¹siadów (M)", ylab = "wartoœæ indexu")
+plot(1:100,adjRandIndex[1:100,2],main="zbiór 2 - skorygowany index Randa",
+     xlab = "Liczba najbli¿yszych s¹siadów (M)", ylab = "wartoœæ indexu")
+plot(1:100,FMIndex[1:100,2],main="zbiór 2 - index FM",
+     xlab = "Liczba najbli¿yszych s¹siadów (M)", ylab = "wartoœæ indexu")
+plot(1:100,adjRandIndex[1:100,3],main="zbiór 3 - skorygowany index Randa",
+     xlab = "Liczba najbli¿yszych s¹siadów (M)", ylab = "wartoœæ indexu")
+plot(1:100,FMIndex[1:100,3],main="zbiór 3 - index FM",
+     xlab = "Liczba najbli¿yszych s¹siadów (M)", ylab = "wartoœæ indexu")
+
+```
+
+##Wnioski:
+
+1. Porównuj¹c rozk³ady zbiorów z danymi z wykresów mo¿na dojœæ do wniosku (raczej niezbyt zaskakuj¹cego), ¿e najlepsze dane (indexy bliskie wartoœci 1) otrzymujemy dla najwiêkszej liczby s¹siadów takiej, ¿e dla dowolnego punktu z danej klasy wszyscy jego s¹siedzi nale¿¹ do danej klasy.
+2. Zw³aszcza po drugim i trzecim rozk³adzie widaæ, ¿e wrost liczby s¹siadów nie zawsze oznacza lepszy wynik, co wiêcej mo¿e doprowadzaæ do pogorszenia wyniku a nawet (zbiór 2) do uzyskania podzia³u zbli¿onego do podzia³u losowego (wartoœci indexów w okilicach zera).
+3. Najlepsze wyniki dla tej metody otrzymamy gdy bêdziemy znali jak¹ najwiêksz¹ liczbê s¹siadów podawaæ, tak aby wœród s¹siadów *"nie ³apa³y siê"* punkty z innych klas podzia³u.
+
+z wykresów mo¿na empirycznie stwierdziæ, ¿e najlepsze dane dla danych zbiorów otrzymujemy dla parametru M w zakresie od 5 do 15. Poni¿ej zosta³y zaprezentowane wartoœci podstawowych parametrów rozk³adu dla takich danych.
+
+```{r echo = FALSE}
+summary = data.frame(matrix(ncol = 3, nrow = 0))
+colnames(summary) <- c("œrednia", "odchylenie standardowe", "mediana")
+
+for (val in 1:3)
+{
+summary[2*val-1,1] <- mean(adjRandIndex[5:15,val]) 
+summary[2*val-1,2] <- sd(adjRandIndex[5:15,val])
+summary[2*val-1,3] <- median(adjRandIndex[5:15,val])
+
+summary[2*val,1] <- mean(FMIndex[5:15,val]) 
+summary[2*val,2] <- sd(FMIndex[5:15,val])
+summary[2*val,3] <- median(FMIndex[5:15,val])
+}
+
+nam <- paste(paste("zbior",as.character(rep(1:3,each = 2))),c("index Randa", "FM index"))
+rownames(summary) = nam
+```
+
+```{r echo = FALSE}
+print(summary)
+```
+
+Z wykresów mo¿na te¿ odczytaæ, ¿e rozk³adem, z którym algorytm poradzi³ sobie najgorzej by³ rozk³ad z dwiema spiralami zaœ najlepiej sobie poradzi³ z rozk³adem pierwszym, czyli z czymœ co najbardziej przypomina intuicyjnie rozumienie pojêcia *"skupienie"*.

@@ -1,0 +1,289 @@
+---
+title: "Raport - praca domowa nr 2"
+author: "Tomasz Suchodolski"
+date: "13 maja 2019"
+output: html_document
+---
+
+## Wstêp teoretyczny
+
+Zadanie analizy skupieñ (ang. cluster analysis) polega na tym, ¿e mamy n punktów pewnej przestrzeni. Wœród tych punktów znaleŸæ taki podzia³ (podzia³ w rozumieniu matematycznym) zbioru punktów na takie niepuste, parami roz³¹czne podzbiory aby punkty wewn¹trz danego podzbioru punkty by³y maksymalnie *podobne* do siebie, jednoczeœnie punkty le¿¹ce w róznych zbiorach by³y od siebie maksymalnie *odmienne*.
+
+W naszym przypadku bêdziemy badali punkty znajduj¹ce siê w k-wymiarowej przestrzeni euklidesowej. Przez *podobieñstwo* punktów do siebie bêdziemy rozumieli odleg³oœæ euklidesow¹ punktów od siebie.
+
+## Zbiory benchmarkowe
+
+Na repozytorium przedmiotu na GitHubie znajdowa³o siê kilkadziesi¹t zbiorów benchmarkowych wraz z wzorcowymi podzia³ami tych zbiorów. Ponadto przygotowa³em 3 w³asne zbiory wraz z etykietami referencyjnymi (szczegó³y w pliku testy.pdf).
+
+## Porównanie danych z danymi referencyjnymi
+
+Aby sprawdziæ, czy obliczone przez algorytmy dane s¹ podobne do danych referencyjnych pos³ugiwaæ siê bêdê dwoma indeksami **"indeksem Fowlkesa–Mallowsa"** oraz **"skorygowanym indeksem Randa"**, które zwracaj¹ 1 jeœli otrzymane k-podzia³y s¹ identyczne i wartoœci odpowiednio mniejsze jeœli podzia³y siê ró¿ni¹.
+
+## Badane algorytmy
+
+W stworzeniu rankingów algorytmów wykorzysam nastêpuj¹ce algorytmy
+
+1. Metod¹ w³asnorêcznie napisan¹ zgodnie z algorytmem z treœci zadania (szczegó³y w testy.pdf)
+2. wszystkie algorytmy hierarchiczne z funkcji **hclust()** czyli:
+    + "ward.D"
+    + "ward.D2"
+    + "single"
+    + "complete" 
+    + "mcquitty" 
+    + "average" 
+    + "median" 
+    + "centroid"
+3. algorytm **Genie** z pakietu *genie*
+4. algorytm **pcm** z pakietu *cluster*
+
+## Analiza
+
+### Porównanie ogólne
+
+Analizê rozpocznê od przeanalizowania wyników dla wszytkich wy¿ej wymienionych metod, dla 46 zbiorów danych (43 z repozytorium oraz 3 w³asne). Celem tej analizy jest znalezienie algorytmów, które dla tych zbiorów dzia³aj¹ *najlepiej*, oraz takich, które dzia³aj¹ *najgorzej*.
+
+```{r echo = FALSE}
+
+set.seed(666)
+
+adjRandIndex <- read.csv("C:/Users/Tomasz/Desktop/PRDPY-project2/adjRandIndex.data")
+FMIndex <- read.csv("C:/Users/Tomasz/Desktop/PRDPY-project2/FMIndex.data")
+adjRandIndex$X <- NULL
+FMIndex$X <- NULL
+
+
+```
+
+#### Zbiory benchmarkowe
+Wszêdzie, gdzie na wykresach wystêpowa³y bêd¹ zbiory benchmarkowe w liczbie 46, bêd¹ wystêpowaæ one odnosiæ siê do zbiorów, umieszczonych w plikach o poni¿ej wypisanych nazwach w nastêpuj¹cej kolejnoœci:
+
+```{r echo = FALSE}
+print(as.character(unlist(adjRandIndex[,12])))
+```
+
+
+#### Wykresy
+Poni¿ej zamieszczam wykesy zale¿noœci dla wszystkich badanych metod. Przedstawiaj¹ one wartoœæ danego indeksu w zale¿noœci od numeru zbioru benchmarkowego.
+
+###indeks Fowlkesa–Mallowsa
+
+```{r echo = FALSE}
+for (val in 1:11)
+{
+  name <- paste("algorytm",colnames(FMIndex)[[val]])
+plot(1:46,FMIndex[,val],main=name,
+     xlab = "Numer zbioru", ylab = "wartoœæ indexu")
+}
+
+```
+
+###skorygowany indeks Rnada
+
+```{r echo = FALSE}
+for (val in 1:11)
+{
+  name <- paste("algorytm",colnames(adjRandIndex)[[val]])
+plot(1:46,adjRandIndex[,val],main=name,
+     xlab = "Numer zbioru", ylab = "wartoœæ indexu")
+}
+
+```
+
+Nietrudno zauwa¿yæ, ¿e takie zestawienie mo¿e i by³oby przydatne do dok³adnej analizy jednak nie jest ono zbyt czytelne. Poni¿ej przedstawiê zestawienia tych samych indeksów dla "najlepszych" trzech, i "najgorszych" trzech algorytmów. Jako kryterium, który algorytm jest lepszy pos³u¿ê siê œredni¹ wartoœci¹ indeksów dla danych algorytmów.
+
+####indeksFowlkesa–Mallowsa
+
+###Srednie
+
+```{r echo = FALSE}
+FMMeans <- colMeans(FMIndex,na.rm = TRUE)
+print(FMMeans)
+```
+
+###Pierwsza trójka
+
+```{r echo = FALSE}
+tmp <- FMIndex[,order(-FMMeans)[1:3]]
+tmp2 <- c(tmp[,1],tmp[,2],tmp[,3])
+
+plot(rep(1:46,3),tmp2,col=rep(c("red","green","blue"),each = 46),main="Pierwsza trójka",
+     xlab = "Numer zbioru", ylab = "wartoœæ indexu")
+
+lines(1:46,tmp[,1],col="red")
+lines(1:46,tmp[,2],col="green")
+lines(1:46,tmp[,3],col="blue")
+
+legend("bottomleft", legend=colnames(tmp), col=c("red","green","blue"),lty=1:1)
+
+```
+
+Prawid³owoœæ zaobserwowana w œrednich potwierdza siê na wykresie. Algorytmy ró¿ni¹ siê miêdzy sob¹ nieznacznie zw³aszcza pierwsze miejsce, które przypad³o algorytmowi **Genie**. Zobaczmy jeszcze jak algorytmy wypadaj¹ w podstawowych parametrach rozk³adu.
+
+
+```{r echo = FALSE}
+
+summary = data.frame(matrix(ncol = 5, nrow = 0))
+colnames(summary) <- c("œrednia", "odchylenie standardowe", "mediana", "minimum", "maksimum")
+for (val in 1:3)
+{
+summary[val,1] <- mean(tmp[,val]) 
+summary[val,2] <- sd(tmp[,val]) 
+summary[val,3] <- median(tmp[,val])
+summary[val,4] <- min(tmp[,val])
+summary[val,5] <- max(tmp[,val]) 
+}
+rownames(summary)<-colnames(tmp)
+print(summary)
+
+```
+
+
+Mo¿emy zaobserwowaæ, ¿e inne parametry istotne dla nas takie jak wartoœæ minimalna, odchylenie standardowe, czy mediana s¹ ko¿ystniejsze dla algorytmu **single**, st¹d i ze wzglêdu na minimanie gorsz¹ œredni¹ wyniku wnioskujê, ¿e wed³ug indeksu **F-M**, metody **Genie** i **Single** s¹ podobnie dobre.
+
+###Ostatnia trójka
+
+```{r echo = FALSE}
+tmp <- FMIndex[,order(FMMeans)[1:3]]
+tmp2 <- c(tmp[,1],tmp[,2],tmp[,3])
+
+plot(rep(1:46,3),tmp2,col=rep(c("red","green","blue"),each = 46),main="Pierwsza trójka",
+     xlab = "Numer zbioru", ylab = "wartoœæ indexu")
+
+lines(1:46,tmp[,1],col="red")
+lines(1:46,tmp[,2],col="green")
+lines(1:46,tmp[,3],col="blue")
+
+legend("top", legend=colnames(tmp), col=c("red","green","blue"),lty=1:1)
+
+```
+
+Tutaj, podobnie jak przy analizie agorytmów najlepszych widzimy, ¿e w gruncie rzeczy dane otrzymane z ró¿nych algorytmów wypadaj¹ podobnie. wed³ug œredniej najgorzej dzia³a w³asnorêcznie zaimplementowana metoda analizy spektralnej. Mo¿e byæ to spowodowane *naiwnym* wyborem krawêdzi uspójniaj¹cych graf (wiêcej w testy.pdf).
+
+```{r echo = FALSE}
+
+summary = data.frame(matrix(ncol = 5, nrow = 0))
+colnames(summary) <- c("œrednia", "odchylenie standardowe", "mediana", "minimum", "maksimum")
+for (val in 1:3)
+{
+summary[val,1] <- mean(tmp[,val]) 
+summary[val,2] <- sd(tmp[,val]) 
+summary[val,3] <- median(tmp[,val])
+summary[val,4] <- min(tmp[,val])
+summary[val,5] <- max(tmp[,val]) 
+}
+rownames(summary)<-colnames(tmp)
+print(summary)
+
+```
+
+W tym wypadku widzimy, ¿e niezale¿nie od doboru kryterium najgorzej wypada algorytm spektralny.
+
+
+####skorygowany Indeks Randa
+
+###Srednie
+
+```{r echo = FALSE}
+adjRandIndex <- adjRandIndex[,1:11]
+FMMeans <- colMeans(adjRandIndex,na.rm = TRUE)
+print(FMMeans)
+```
+
+###Pierwsza trójka
+
+```{r echo = FALSE}
+tmp <- adjRandIndex[,order(-FMMeans)[1:3]]
+tmp2 <- c(tmp[,1],tmp[,2],tmp[,3])
+
+plot(rep(1:46,3),tmp2,col=rep(c("red","green","blue"),each = 46),main="Pierwsza trójka",
+     xlab = "Numer zbioru", ylab = "wartoœæ indexu")
+
+lines(1:46,tmp[,1],col="red")
+lines(1:46,tmp[,2],col="green")
+lines(1:46,tmp[,3],col="blue")
+
+legend("top", legend=colnames(tmp), col=c("red","green","blue"),lty=1:1)
+
+```
+
+Mierz¹c drugim indeksem najlepszy okaza³ siê algorytm *ward.D*. Co ciekawe dawa³ on niemal identyczne wyniki co pozosta³e algorytmy "z podium". Jednak wynik dla jednego ze zbiorów mia³ znacz¹co lepszy. Zobaczmy jeszcze jak algorytmy wypadaj¹ w podstawowych parametrach rozk³adu.
+
+
+```{r echo = FALSE}
+
+summary = data.frame(matrix(ncol = 5, nrow = 0))
+colnames(summary) <- c("œrednia", "odchylenie standardowe", "mediana", "minimum", "maksimum")
+for (val in 1:3)
+{
+summary[val,1] <- mean(tmp[,val],na.rm=TRUE) 
+summary[val,2] <- sd(tmp[,val],na.rm=TRUE) 
+summary[val,3] <- median(tmp[,val],na.rm=TRUE)
+summary[val,4] <- min(tmp[,val],na.rm=TRUE)
+summary[val,5] <- max(tmp[,val],na.rm=TRUE) 
+}
+rownames(summary)<-colnames(tmp)
+print(summary)
+
+```
+
+
+W tym wypadku algorytm **ward.D** jest najlepszy w ka¿dej klasyfikacji
+
+###Ostatnia trójka
+
+```{r echo = FALSE}
+tmp <- adjRandIndex[,order(FMMeans)[1:3]]
+tmp2 <- c(tmp[,1],tmp[,2],tmp[,3])
+
+plot(rep(1:46,3),tmp2,col=rep(c("red","green","blue"),each = 46),main="Pierwsza trójka",
+     xlab = "Numer zbioru", ylab = "wartoœæ indexu")
+
+lines(1:46,tmp[,1],col="red")
+lines(1:46,tmp[,2],col="green")
+lines(1:46,tmp[,3],col="blue")
+
+legend("top", legend=colnames(tmp), col=c("red","green","blue"),lty=1:1)
+
+```
+
+Zdecydowanie najgorszym algorytmem wg. indeksu Randa jest algorytm **Single**. Co ciekawe przybiera on zwykle wartoœci indeku bardzo bliskie zeru. A wiêkszoœæ *niezerowych* obserwacji jest obserwacjami bardzo bliskimi jedynki.
+
+```{r echo = FALSE}
+
+summary = data.frame(matrix(ncol = 5, nrow = 0))
+colnames(summary) <- c("œrednia", "odchylenie standardowe", "mediana", "minimum", "maksimum")
+for (val in 1:3)
+{
+summary[val,1] <- mean(tmp[,val],na.rm=TRUE) 
+summary[val,2] <- sd(tmp[,val],na.rm=TRUE) 
+summary[val,3] <- median(tmp[,val],na.rm=TRUE)
+summary[val,4] <- min(tmp[,val],na.rm=TRUE)
+summary[val,5] <- max(tmp[,val],na.rm=TRUE) 
+}
+rownames(summary)<-colnames(tmp)
+print(summary)
+
+```
+
+Parametry rozk³adu utwierdzaj¹ nas w przekonaniu, ¿e wed³ug drugiego z indeksów algorytm single jest najgorszy.
+
+
+##Wnioski
+
+* Analiza skupieñ pojêciem bardzo rozleg³ym.
+* Ró¿ne indeksy da³y znacz¹co ró¿ne wyniki.
+* Jeœli mia³bym wiêcej czasu rozwa¿y³bym jeszcze w analizie czas wykonywania algorytmów.
+* Interfejs zapisu i odczytu plików w jêzyku R nie nale¿y do moich ulubionych.
+* Napisanie funkcji w Rcpp by³o du¿o przyjemniejsze ni¿ myœla³em, ¿e bêdzie.
+
+##P.S.
+
+* Informujê, ¿e plik "benchmark_data.R" nie jest w stanie wygenerowaæ kompletnych danych wykorzystanych w analizie. Stanowi jedynie szkielet takiego pliku.
+* Zdajê sobie sprawê, ¿e jakoœæ kodu momentami nie jest najwy¿sza.
+* W razie trudoœci w czytaniu pdf'a do³¹czam plik html'owy
+
+Powy¿sze mankamenty jak i brak analizy czasu wykonania spowodowane by³y brakiem czasu.
+
+
+
+
